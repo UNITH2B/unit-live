@@ -16,7 +16,7 @@
   #status { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: #bbb; flex: none; }
   .dot.on { background: var(--accent); box-shadow: 0 0 0 3px rgba(212,0,95,.15); }
-  .tools { display: flex; gap: 6px; }
+  .tools { display: flex; gap: 10px; flex-wrap: wrap; }
   .tools button { border: 0; background: none; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; padding: 0; }
   .tools button:hover { color: var(--ink); }
   #chat { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -53,6 +53,18 @@
   .confirm.is-ok { border-color: var(--accent); }
   .confirm .btn { display: inline-block; text-decoration: none; background: var(--accent); color: #fff; padding: 6px 10px; font-size: 12px; }
   .confirm .btn--ghost { background: none; color: var(--ink); border: 1px solid var(--line); }
+  .side { padding: 10px 12px; border-bottom: 1px solid var(--line); max-height: 60vh; overflow-y: auto; background: var(--soft); }
+  .side__title { margin: 0 0 6px; font-weight: 650; }
+  .side__empty { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+  .side ul { list-style: none; margin: 0 0 8px; padding: 0; }
+  .side li { display: flex; gap: 6px; align-items: flex-start; padding: 6px 0; border-top: 1px solid var(--line); }
+  .side li.is-cur .side__open b { color: var(--accent); }
+  .side__open { flex: 1; text-align: left; border: 0; background: none; padding: 0; font: inherit; cursor: pointer; }
+  .side__open b { display: block; font-weight: 600; font-size: 12px; }
+  .side__open span, .side__fact { display: block; color: var(--muted); font-size: 11px; }
+  .side__fact { color: var(--ink); font-size: 12px; flex: 1; }
+  .side__del, .side__delall { border: 1px solid var(--line); background: #fff; color: var(--muted); font: inherit; font-size: 11px; padding: 2px 6px; cursor: pointer; }
+  .side__del:hover, .side__delall:hover { color: var(--accent); border-color: var(--accent); }
   #keyform { padding: 14px 12px; }
   #keyform p { margin: 0 0 10px; color: var(--muted); }
   #keyform input { width: 100%; padding: 7px 8px; border: 1px solid var(--line); font: inherit; margin-bottom: 8px; }
@@ -64,7 +76,9 @@
   <div class="mark"></div><h1>UNIT Live</h1><span id="status">Se conecteaza...</span>
   <div class="dot" id="dot"></div>
 </header>
-<div class="tools" style="padding:6px 12px 0"><button id="reset" type="button">Conversatie noua</button><button id="keybtn" type="button">Cheie</button></div>
+<div class="tools" style="padding:6px 12px 0"><button id="reset" type="button">Conversatie noua</button><button id="histbtn" type="button">Istoric</button><button id="membtn" type="button">Memorie</button><button id="keybtn" type="button">Cheie</button></div>
+<section id="history" class="side" hidden></section>
+<section id="memory" class="side" hidden></section>
 
 <section id="keyform" hidden>
   <p>Introdu cheia API Anthropic. Ramane salvata doar in acest browser.</p>
@@ -81,6 +95,6 @@
 </section>
 
 <script src="vendor/trimbleconnect.workspace.api.js"></script>
-<script src="app.js?v=9f01fff6"></script>
+<script src="app.js?v=d8708a1a"></script>
 </body>
 </html>
