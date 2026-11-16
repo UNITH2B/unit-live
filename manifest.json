@@ -1,0 +1,9 @@
+{
+  "title": "UNIT Live",
+  "icon": "https://unith2b.github.io/unit-live/icon.svg",
+  "infoUrl": "https://unith2b.github.io/unit-live/index.html",
+  "description": "Claude interogheaza modelul federat si raspunde direct in viewer (UNITH2B).",
+  "url": "https://unith2b.github.io/unit-live/index.html",
+  "enabled": true,
+  "extensionType": ["3dviewer"]
+}

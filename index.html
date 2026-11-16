@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UNIT Live</title>
+<style>
+  :root { --accent: #D4005F; --ink: #111; --muted: #6b6b6b; --line: #e6e6e6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.45 Inter, system-ui, -apple-system, sans-serif; color: var(--ink); background: #fff; }
+  header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .mark { width: 14px; height: 14px; background: #000; }
+  h1 { font-size: 14px; margin: 0; font-weight: 600; letter-spacing: .01em; }
+  .dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: #bbb; }
+  .dot.on { background: var(--accent); box-shadow: 0 0 0 4px rgba(212,0,95,.15); }
+  #status { padding: 10px 14px; color: var(--muted); }
+  #log { list-style: none; margin: 0; padding: 0 14px 14px; }
+  #log li { padding: 8px 0; border-top: 1px solid var(--line); }
+  #log b { color: var(--accent); font-weight: 600; }
+  button { margin: 0 14px 10px; padding: 6px 10px; border: 1px solid var(--ink); background: #fff; cursor: pointer; font: inherit; }
+</style>
+</head>
+<body>
+<header><div class="mark"></div><h1>UNIT Live</h1><div id="dot" class="dot"></div></header>
+<div id="status">Se conecteaza la viewer...</div>
+<button id="tok" hidden>Permite acces la topics</button>
+<ul id="log"></ul>
+<script src="vendor/trimbleconnect.workspace.api.js"></script>
+<script>
+// Puntea dintre Claude (server local) si viewer-ul Trimble Connect.
+// Comenzile vin de la serverul local prin long-poll; se executa pe Workspace API.
+// Panoul poate fi servit local sau de pe https (GitHub Pages); serverul ramane pe laptop.
+const BRIDGE = /^(127\.0\.0\.1|localhost)$/.test(location.hostname) ? location.origin : 'http://127.0.0.1:8765';
+const $ = (id) => document.getElementById(id);
+let API = null;
+const cache = new Map(); // modelId -> ObjectProperties[]
+
+function log(label, text) {
+  const li = document.createElement('li');
+  li.innerHTML = '<b></b> <span></span>';
+  li.querySelector('b').textContent = label;
+  li.querySelector('span').textContent = text || '';
+  $('log').prepend(li);
+  while ($('log').children.length > 12) $('log').lastChild.remove();
+}
+
+// ---------- helpere disponibile in codul trimis de Claude ----------
+const H = {
+  api: () => API,
+  async project() { return API.project.getProject(); },
+  async models() { return API.viewer.getModels('loaded'); },
+  /** [{modelId, objects:[{id}]}] */
+  async objects(selector) { return API.viewer.getObjects(selector); },
+  /** proprietatile tuturor obiectelor dintr-un model (cu cache) */
+  async modelProps(modelId, batch = 400) {
+    if (cache.has(modelId)) return cache.get(modelId);
+    const mo = (await API.viewer.getObjects({ modelObjectIds: [{ modelId }] })).find((m) => m.modelId === modelId);
+    const ids = (mo ? mo.objects : []).map((o) => o.id);
+    const out = [];
+    for (let i = 0; i < ids.length; i += batch) {
+      out.push(...(await API.viewer.getObjectProperties(modelId, ids.slice(i, i + batch))));
+    }
+    cache.set(modelId, out);
+    return out;
+  },
+  /** toate proprietatile, din toate modelele incarcate: [{modelId, name, objs}] */
+  async allProps() {
+    const res = [];
+    for (const m of await H.models()) res.push({ modelId: m.id, name: m.name, objs: await H.modelProps(m.id) });
+    return res;
+  },
+  /** valoarea unei proprietati: pset optional, nume obligatoriu */
+  val(obj, name, pset) {
+    for (const ps of obj.properties || []) {
+      if (pset && ps.name !== pset) continue;
+      for (const p of ps.properties || []) if (p.name === name) return p.value;
+    }
+    return undefined;
+  },
+  /** lista {modelId, ids} -> selector Workspace API */
+  sel(list) { return { modelObjectIds: list.map((x) => ({ modelId: x.modelId, objectRuntimeIds: x.ids })) }; },
+  async color(list, color = '#D4005F') { await API.viewer.setObjectState(H.sel(list), { color, visible: true }); },
+  async isolate(list) { await API.viewer.isolateEntities(list.map((x) => ({ modelId: x.modelId, entityIds: x.ids }))); },
+  async ghostOthers(list, color = '#D4005F') {
+    await API.viewer.setObjectState(undefined, { color: { r: 190, g: 190, b: 195, a: 40 }, visible: true });
+    await H.color(list, color);
+  },
+  async select(list) { await API.viewer.setSelection(H.sel(list), 'set'); },
+  async fit(list) { await API.viewer.setCamera(H.sel(list), { animationTime: 900 }); },
+  async reset() { await API.viewer.setObjectState(undefined, { color: 'reset', visible: 'reset' }); await API.viewer.setCamera('reset', { animationTime: 600 }); },
+  async bboxes(modelId, ids) { return API.viewer.getObjectBoundingBoxes(modelId, ids); },
+  async snapshot() { return API.viewer.getSnapshot(); },
+  log,
+};
+window.H = H;
+
+async function runCommand(cmd) {
+  if (cmd.op === 'snapshot') return API.viewer.getSnapshot();
+  if (cmd.op === 'run') {
+    const fn = new (Object.getPrototypeOf(async function () {}).constructor)('API', 'H', cmd.code);
+    return fn(API, H);
+  }
+  throw new Error('comanda necunoscuta: ' + cmd.op);
+}
+
+async function loop() {
+  for (;;) {
+    let cmd = null;
+    try {
+      const r = await fetch(BRIDGE + '/poll', { cache: 'no-store' });
+      $('dot').classList.add('on');
+      if (r.status === 204) continue;
+      cmd = await r.json();
+    } catch (e) {
+      $('dot').classList.remove('on');
+      $('status').textContent = 'Serverul local nu raspunde. Reincerc...';
+      await new Promise((ok) => setTimeout(ok, 2000));
+      continue;
+    }
+    if (cmd.label) log(cmd.label, '');
+    let body;
+    try {
+      const result = await runCommand(cmd);
+      body = { id: cmd.id, ok: true, result: result === undefined ? null : result };
+    } catch (e) {
+      body = { id: cmd.id, ok: false, error: String((e && e.message) || e) };
+    }
+    let json;
+    try { json = JSON.stringify(body); } catch (e) { json = JSON.stringify({ id: cmd.id, ok: false, error: 'rezultat neserializabil: ' + e.message }); }
+    await fetch(BRIDGE + '/result', { method: 'POST', headers: { 'content-type': 'application/json' }, body: json }).catch(() => {});
+  }
+}
+
+async function sendToken(token) {
+  if (!token || token === 'pending' || token === 'denied') return false;
+  const project = await API.project.getProject().catch(() => null);
+  await fetch(BRIDGE + '/token', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, project }) });
+  $('tok').hidden = true;
+  log('Acces topics', 'permis');
+  return true;
+}
+
+async function main() {
+  API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
+    if (event === 'extension.accessToken') sendToken(data);
+    if (event === 'viewer.onModelStateChanged' || event === 'viewer.onModelReset') cache.clear();
+  });
+  const project = await API.project.getProject().catch(() => null);
+  $('status').textContent = 'Conectat' + (project ? ': ' + project.name : '') + '. Comenzile din Claude apar aici.';
+  fetch(BRIDGE + '/hello', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ project }) }).catch(() => {});
+  const t = await API.extension.requestPermission('accesstoken').catch(() => null);
+  if (!(await sendToken(t).catch(() => false))) {
+    $('tok').hidden = false;
+    $('tok').onclick = async () => sendToken(await API.extension.requestPermission('accesstoken'));
+  }
+  loop();
+}
+main().catch((e) => { $('status').textContent = 'Eroare: ' + e.message; });
+</script>
+</body>
+</html>
