@@ -42,14 +42,14 @@
 <button class="print" onclick="window.print()">Salveaza ca PDF</button>
 <article class="page">
   <header>
-    <span class="brand"><i></i>UNITH2B</span>
+    <span class="brand"><i></i>THE UNIT</span>
     <span class="meta">${l(i||"")}<br>${l(c)}</span>
   </header>
   <h1>${l(n)}</h1>
   ${e?`<p class="sub">${l(e)}</p>`:""}
   ${a?`<figure><img src="${a}" alt=""><figcaption>Vedere din modelul federat, Trimble Connect</figcaption></figure>`:""}
   ${g(t||"")}
-  <footer>Raport generat de UNIT Live (agent AI UNITH2B) direct din modelul BIM din Trimble Connect. Cifrele sunt citite din model la data raportului; ce lipseste din model este semnalat, nu estimat.</footer>
+  <footer>Raport generat de UNIT Live (agent AI THE UNIT) direct din modelul BIM din Trimble Connect. Cifrele sunt citite din model la data raportului; ce lipseste din model este semnalat, nu estimat.</footer>
 </article>
 </body>
 </html>`}var x=n=>{let e=atob(n.replace(/-/g,"+").replace(/_/g,"/")),t=new Uint8Array(e.length);for(let i=0;i<e.length;i++)t[i]=e.charCodeAt(i);return t};async function u(n){let e=new Blob([x(n)]).stream().pipeThrough(new DecompressionStream("gzip"));return JSON.parse(await new Response(e).text())}async function h(){let n=location.hash.slice(1);if(!n){document.body.textContent="Raportul lipseste din link.";return}let e=await u(n),t=m({...e,date:e.date?new Date(e.date):new Date});document.open(),document.write(t),document.close()}h().catch(n=>{document.body.textContent="Raportul nu a putut fi citit: "+n.message});})();
